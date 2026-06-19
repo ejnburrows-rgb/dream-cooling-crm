@@ -340,6 +340,14 @@
       scanning: 'Reading…', readFailed: 'Could not read it — please type the details.', tasks: 'Tasks',
       myDay: 'My Day', noJobsToday: 'No jobs assigned to you yet.', whoCalled: 'Caller name',
       callerPhone: 'Caller phone', logCall: 'Log the call', summary: 'Summary',
+      readEstimate: 'Read & estimate', readAgain: 'Read again', reading: 'Reading the drawing…',
+      estimatingMsg: 'Building the estimate…', estimateReady: 'Estimate ready', jobSummaryL: 'Job summary',
+      materials: 'Materials', scopeOfWork: 'Scope of work', quantities: 'Quantities', assumptions: 'Assumptions',
+      oneQuestion: 'One quick question', answerIt: 'Answer', skip: 'Skip', confirm: 'Confirm & save',
+      reviewEdit: 'Review & edit', addItem: 'Add item', itemL: 'Item', qtyL: 'Qty', unitL: 'Unit',
+      createEstimate: 'Create estimate from this', aiNotReady: 'AI is not set up yet — the file was saved. You can type the estimate.',
+      couldntRead: "Couldn't read much from this file — you can still type the estimate below.",
+      showInLang: 'Show in this language', drawingHint: 'Upload a drawing or PDF and I will read it and draft a materials list.',
     },
     es: {
       home: 'Inicio', customers: 'Clientes', jobs: 'Trabajos', calls: 'Llamadas', more: 'Más',
@@ -381,6 +389,14 @@
       scanning: 'Leyendo…', readFailed: 'No se pudo leer — por favor escribe los datos.', tasks: 'Tareas',
       myDay: 'Mi Día', noJobsToday: 'Aún no tienes trabajos asignados.', whoCalled: 'Nombre de quien llama',
       callerPhone: 'Teléfono', logCall: 'Registrar llamada', summary: 'Resumen',
+      readEstimate: 'Leer y estimar', readAgain: 'Leer de nuevo', reading: 'Leyendo el plano…',
+      estimatingMsg: 'Preparando el estimado…', estimateReady: 'Estimado listo', jobSummaryL: 'Resumen del trabajo',
+      materials: 'Materiales', scopeOfWork: 'Alcance del trabajo', quantities: 'Cantidades', assumptions: 'Suposiciones',
+      oneQuestion: 'Una pregunta rápida', answerIt: 'Responder', skip: 'Omitir', confirm: 'Confirmar y guardar',
+      reviewEdit: 'Revisar y editar', addItem: 'Agregar artículo', itemL: 'Artículo', qtyL: 'Cant.', unitL: 'Unidad',
+      createEstimate: 'Crear presupuesto con esto', aiNotReady: 'La IA aún no está configurada — el archivo se guardó. Puedes escribir el estimado.',
+      couldntRead: 'No se pudo leer mucho de este archivo — puedes escribir el estimado abajo.',
+      showInLang: 'Mostrar en este idioma', drawingHint: 'Sube un plano o PDF y lo leeré para hacer una lista de materiales.',
     }
   };
   const t = (k) => (T[lang] && T[lang][k]) || T.en[k] || k;
@@ -860,7 +876,8 @@
         <button class="btn sm" onclick="uploadDoc('${j.id}','doc')"><i class="fas fa-file-arrow-up"></i> ${t('uploadDoc')}</button>
         <button class="btn amber sm" onclick="uploadDoc('${j.id}','scan')"><i class="fas fa-expand"></i> ${t('scanDoc')}</button>
         <button class="btn ghost sm" onclick="uploadDoc('${j.id}','cad')"><i class="fas fa-vector-square"></i> ${t('cadFile')}</button>
-      </div>`;
+      </div>
+      <div class="muted" style="margin-top:6px;font-size:13px"><i class="fas fa-wand-magic-sparkles"></i> ${t('drawingHint')}</div>`;
       html += `<div class="card" style="margin-top:12px">${docs.length ? docs.map(docRow).join('') : emptyState()}</div>`;
     } else if (tab === 'money') {
       html += `<div class="btnrow"><button class="btn sm" onclick="openEstimateForm(null,'${j.id}')"><i class="fas fa-plus"></i> ${t('estimates')}</button><button class="btn green sm" onclick="openInvoiceForm(null,'${j.id}')"><i class="fas fa-plus"></i> ${t('invoices')}</button></div>`;
@@ -1038,21 +1055,24 @@
 
   /* ============================ DOCUMENTS (+ scan/OCR + CAD) ============================ */
   function docRow(d) {
-    const icon = d.kind === 'cad' ? 'fa-vector-square' : d.mime && d.mime.includes('pdf') ? 'fa-file-pdf' : d.mime && d.mime.includes('image') ? 'fa-file-image' : 'fa-file';
+    const draw = d.kind === 'cad' || d.kind === 'drawing';
+    const icon = draw ? 'fa-vector-square' : d.mime && d.mime.includes('pdf') ? 'fa-file-pdf' : d.mime && d.mime.includes('image') ? 'fa-file-image' : 'fa-file';
+    const badge = d.estimate ? ` <span class="pill green">${t('estimateReady')}</span>` : '';
     return `<div class="list-item" onclick="openDoc('${d.id}')">
-      <div class="avatar" style="background:${d.kind === 'cad' ? 'var(--blue2)' : 'var(--accent)'}"><i class="fas ${icon}"></i></div>
-      <div class="li-main"><div class="li-title">${esc(d.name)}</div><div class="li-sub">${d.kind === 'cad' ? 'AutoCAD' : (d.kind || 'doc')} · ${timeAgo(d.created)}</div></div></div>`;
+      <div class="avatar" style="background:${draw ? 'var(--blue2)' : 'var(--accent)'}"><i class="fas ${icon}"></i></div>
+      <div class="li-main"><div class="li-title">${esc(d.name)}${badge}</div><div class="li-sub">${d.kind === 'cad' ? 'AutoCAD' : (d.kind || 'doc')} · ${timeAgo(d.created)}</div></div></div>`;
   }
   function uploadDoc(jobId, kind) {
     const inp = document.createElement('input'); inp.type = 'file';
-    if (kind === 'cad') inp.accept = '.dwg,.dxf,.dwf,.dgn';
+    if (kind === 'cad') inp.accept = '.dwg,.dxf,.dwf,.dgn,.pdf,application/pdf';
     else if (kind === 'scan') { inp.accept = 'image/*'; inp.capture = 'environment'; }
     inp.onchange = async () => {
       const f = inp.files[0]; if (!f) return;
       let blob = f, mime = f.type;
       if (kind === 'scan' && f.type.startsWith('image/')) blob = await downscale(f);
       const fileId = await storeFile(blob);
-      const docRec = add('documents', { jobId, name: f.name || (kind + '-' + todayISO()), kind, mime, size: f.size });
+      const isDrawing = kind === 'cad' || (mime || '').includes('pdf') || /\.(dxf|dwg|dwf|dgn|pdf)$/i.test(f.name || '');
+      const docRec = add('documents', { jobId, name: f.name || (kind + '-' + todayISO()), kind: isDrawing && kind !== 'cad' ? 'drawing' : kind, mime, size: f.size });
       docRec.fileId = fileId; save();
       // If it's a scan, try OCR and attach the read text + offer to create check/invoice.
       if (kind === 'scan' && f.type.startsWith('image/')) {
@@ -1061,6 +1081,10 @@
         const parsed = await ocrDocument(dataUrl);
         if (parsed) { update('documents', docRec.id, { ocr: parsed }); offerFromOCR(parsed, jobId, docRec.id); }
         else toast(t('readFailed'), 'error');
+      } else if (isDrawing) {
+        // Drawing or PDF → read it and draft a materials estimate (upload → review → confirm).
+        await analyzeDrawing(docRec.id);
+        return;
       }
       toast(t('saved'), 'success'); render();
     };
@@ -1070,9 +1094,21 @@
     const d = get('documents', id);
     const url = await getFileURL(d.fileId);
     const isImg = d.mime && d.mime.startsWith('image/');
+    const draw = d.kind === 'cad' || d.kind === 'drawing';
+    const e = d.estimate;
+    const estCard = e ? `<div class="card" style="padding:12px;margin-bottom:10px">
+        <div class="muted">${t('jobSummaryL')}</div><div>${esc(e.jobSummary || '—')}</div>
+        ${(e.materials && e.materials.length) ? `<div class="muted" style="margin-top:8px">${t('materials')}</div><ul style="margin:4px 0 0 16px;padding:0">${e.materials.map(m => `<li>${esc(((m.qty || '') + ' ' + (m.unit || '') + ' ' + (m.item || '')).replace(/\s+/g, ' ').trim())}</li>`).join('')}</ul>` : ''}
+      </div>` : '';
     modal(`<h2>${esc(d.name)}</h2>
       ${isImg && url ? `<img src="${url}" style="width:100%;border-radius:12px;margin:10px 0">` : ''}
+      ${estCard}
       ${d.ocr ? `<div class="card" style="padding:12px;margin-bottom:10px"><div class="muted">OCR</div><pre style="white-space:pre-wrap;font-family:inherit">${esc(typeof d.ocr === 'string' ? d.ocr : JSON.stringify(d.ocr, null, 2))}</pre></div>` : ''}
+      ${draw ? `<div class="btnrow">
+        ${e ? `<button class="btn green" onclick="closeModal();showDrawingReview('${id}')"><i class="fas fa-pen"></i> ${t('reviewEdit')}</button>
+              <button class="btn" onclick="closeModal();estimateFromDrawing('${id}')"><i class="fas fa-file-invoice-dollar"></i> ${t('createEstimate')}</button>` : ''}
+        <button class="btn ghost" onclick="closeModal();analyzeDrawing('${id}')"><i class="fas fa-rotate"></i> ${e ? t('readAgain') : t('readEstimate')}</button>
+      </div>` : ''}
       <div class="btnrow">
         ${url ? `<a class="btn ghost" href="${url}" download="${esc(d.name)}"><i class="fas fa-download"></i> ${lang === 'es' ? 'Descargar' : 'Download'}</a>` : ''}
         <button class="btn red" onclick="confirmDel(()=>{remove('documents','${id}');closeModal();render()})"><i class="fas fa-trash"></i> ${t('delete')}</button>
@@ -1590,6 +1626,233 @@
   function ocrCheck(dataUrl) { return aiVision(dataUrl, 'This is a photo of a check. Extract JSON only: {"name":"payer name","amount":0,"date":"YYYY-MM-DD","checkNumber":"","memo":""}'); }
   function ocrDocument(dataUrl) { return aiVision(dataUrl, 'Read this document (invoice/receipt/check/paperwork). Extract JSON only: {"type":"invoice|receipt|check|other","name":"company or person","amount":0,"date":"YYYY-MM-DD","checkNumber":"","memo":"short summary"}'); }
 
+  /* ==================== DRAWING ESTIMATOR (NVIDIA, server key) ==================== */
+  // Sends a chat request to the NVIDIA model through the server proxy (key lives in
+  // the NVIDIA_API_KEY env var, never in the browser). Returns the assistant text, or
+  // null if AI is unavailable so the owner can simply type the estimate by hand.
+  async function callNvidia(messages, opts) {
+    opts = opts || {};
+    const body = { messages, max_tokens: opts.max_tokens || 1600, temperature: opts.temperature == null ? 0.2 : opts.temperature };
+    if (opts.model) body.model = opts.model;
+    try {
+      const r = await fetch('/api/nvidia', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (r.ok) { const d = await r.json(); const m = d && d.choices && d.choices[0] && d.choices[0].message; if (m && m.content) return m.content; }
+    } catch (e) { /* offline / no function — fall through */ }
+    return null;
+  }
+
+  // Blob readers that work both in the browser and in the jsdom test harness.
+  function blobText(b) { return b.text ? b.text() : new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsText(b); }); }
+  function blobBuf(b) { return b.arrayBuffer ? b.arrayBuffer() : new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsArrayBuffer(b); }); }
+
+  // pdf.js is loaded lazily from the CDN only when a PDF is actually opened, so the
+  // base app stays dependency-free. The service worker caches it for offline reuse.
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (loadPdfJs._p) return loadPdfJs._p;
+    loadPdfJs._p = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload = () => { try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch (e) {} resolve(window.pdfjsLib); };
+      s.onerror = () => reject(new Error('pdfjs load failed'));
+      document.head.appendChild(s);
+    });
+    return loadPdfJs._p;
+  }
+  async function extractPDFText(blob) {
+    const lib = await loadPdfJs();
+    const data = await blobBuf(blob);
+    const pdf = await lib.getDocument({ data }).promise;
+    const out = []; const max = Math.min(pdf.numPages, 12);
+    for (let p = 1; p <= max; p++) {
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      tc.items.forEach(it => { if (it.str && it.str.trim()) out.push(it.str.trim()); });
+    }
+    return out;
+  }
+  // DXF is plain text: alternating group-code / value lines. Pull text entity
+  // values (codes 1 & 3) and layer names (code 8).
+  function extractDXFText(text) {
+    const lines = text.split(/\r\n|\r|\n/);
+    const texts = [], layers = new Set();
+    for (let i = 0; i + 1 < lines.length; i += 2) {
+      const code = lines[i].trim(); const val = lines[i + 1];
+      if (code === '1' || code === '3') { const v = (val || '').replace(/\\[A-Za-z][^;]*;?/g, '').replace(/[{}]/g, '').trim(); if (v) texts.push(v); }
+      else if (code === '8') { const v = (val || '').trim(); if (v) layers.add(v); }
+    }
+    return { texts, layers: [...layers] };
+  }
+  // Last resort for binary CAD (DWG/DWF/DGN): scrape readable ASCII runs. Title
+  // blocks and notes are frequently stored as plain strings.
+  function scrapeStrings(buf) {
+    const bytes = new Uint8Array(buf); const out = []; let cur = '';
+    for (let i = 0; i < bytes.length; i++) {
+      const c = bytes[i];
+      if (c >= 32 && c < 127) cur += String.fromCharCode(c);
+      else { if (cur.length >= 4) out.push(cur); cur = ''; }
+    }
+    if (cur.length >= 4) out.push(cur);
+    return out.filter(s => /[A-Za-z]{2,}/.test(s));
+  }
+  async function extractDrawing(blob, name) {
+    const ext = ((name || '').split('.').pop() || '').toLowerCase();
+    let texts = [], layers = [];
+    try {
+      if (ext === 'pdf' || (blob.type && blob.type.includes('pdf'))) texts = await extractPDFText(blob);
+      else if (ext === 'dxf') { const r = extractDXFText(await blobText(blob)); texts = r.texts; layers = r.layers; }
+      else texts = scrapeStrings(await blobBuf(blob));
+    } catch (e) { /* leave empty; AI step will note limited data */ }
+    const seen = new Set(), clean = [];
+    for (const tx of texts) { const k = (tx || '').trim(); if (k && !seen.has(k)) { seen.add(k); clean.push(k); } if (clean.length >= 400) break; }
+    return classifyExtraction(name, ext, clean, layers);
+  }
+  // Turn the raw text list into structured, labelled groups the AI can map from.
+  function classifyExtraction(fileName, fileType, texts, layers) {
+    const dimRe = /(\d+(?:\.\d+)?\s*(?:mm|cm|"|'|in|ft|psi|gpm|gpd|°))|(\d+\s*\d*\/\d+\s*")|(\bDN\s?\d+)|(Ø\s?\d+)|(\bR\d+\b)|(\d+'\s*-?\s*\d*")/i;
+    const tbRe = /(scale|date|drawn|checked|sheet|project|rev(ision)?\b|client|title|job\s*(no|#)|drawing\s*(no|#)|approved|address)/i;
+    const noteRe = /\b(note|notes|typ\.?|typical|provide|install|verify|refer|shall|contractor|min\.?|max\.?)\b/i;
+    const titleBlock = [], notes = [], dimensions = [], labels = [];
+    texts.forEach(s => {
+      if (tbRe.test(s) && s.length < 80) titleBlock.push(s);
+      else if (dimRe.test(s)) dimensions.push(s);
+      else if (noteRe.test(s)) notes.push(s);
+      else if (s.length <= 28) labels.push(s);
+      else notes.push(s);
+    });
+    return {
+      fileName, fileType, layers: layers || [],
+      titleBlock: titleBlock.slice(0, 40), notes: notes.slice(0, 80),
+      dimensions: dimensions.slice(0, 80), labels: [...new Set(labels)].slice(0, 120),
+      allText: texts.slice(0, 300), rawCount: texts.length,
+    };
+  }
+
+  // Main pipeline: read the file → structure it → ask NVIDIA for a draft materials
+  // list / scope → (maybe ask ONE follow-up) → open the review-and-edit sheet.
+  async function analyzeDrawing(docId, followupAnswer) {
+    const d = get('documents', docId); if (!d) return;
+    const blob = await idbGet('files', d.fileId);
+    if (!blob) { toast(t('readFailed'), 'error'); return; }
+    toast(t('reading'));
+    let ex = d.extracted;
+    if (!ex) { ex = await extractDrawing(blob, d.name); update('documents', docId, { extracted: ex }); }
+
+    toast(t('estimatingMsg'));
+    const langName = lang === 'es' ? 'Spanish' : 'English';
+    const sys = `You are OTTO, a plumbing estimating assistant for a small plumbing company. You read construction/plumbing drawings and turn them into a simple draft estimate a non-technical owner can review. Reply in ${langName}. Be practical and conservative. Output ONLY valid JSON (no prose, no markdown) with exactly this shape:
+{"jobSummary":"2-4 plain sentences","scope":["short item",...],"materials":[{"item":"","qty":0,"unit":""}],"quantities":[{"label":"","count":0}],"assumptions":["things you inferred or are unsure about"],"question":""}
+Rules: Never invent precise counts you cannot support from the data — instead note them in "assumptions". If ONE missing detail would meaningfully change the estimate, put a single short plain-language question in "question"; otherwise "question" must be "".`;
+    const userParts = [
+      `Drawing file: ${ex.fileName} (${ex.fileType || 'unknown'}). Readable text items: ${ex.rawCount}.`,
+      ex.titleBlock.length ? 'TITLE BLOCK:\n' + ex.titleBlock.join('\n') : '',
+      ex.notes.length ? 'NOTES:\n' + ex.notes.join('\n') : '',
+      ex.dimensions.length ? 'DIMENSIONS:\n' + ex.dimensions.join('\n') : '',
+      ex.labels.length ? 'LABELS / CALLOUTS:\n' + ex.labels.join(' | ') : '',
+      ex.layers.length ? 'LAYERS:\n' + ex.layers.join(', ') : '',
+      ex.rawCount && ex.allText.length ? 'ALL EXTRACTED TEXT:\n' + ex.allText.join('\n') : '(Very little readable text could be extracted from this file.)',
+      followupAnswer ? `\nThe owner answered your question: "${followupAnswer}". Use it and do NOT ask any more questions (set "question" to "").` : '',
+    ].filter(Boolean).join('\n\n');
+
+    const raw = await callNvidia([{ role: 'system', content: sys }, { role: 'user', content: userParts }]);
+    if (raw == null) {
+      // AI unavailable — keep the saved file and let the owner type the estimate.
+      toast(t('aiNotReady'), 'error');
+      const cur = d.estimate || { jobSummary: '', scope: [], materials: [], assumptions: [], quantities: [] };
+      update('documents', docId, { estimate: cur });
+      showDrawingReview(docId);
+      return;
+    }
+    let parsed = null;
+    try { const m = raw.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : null; } catch (e) { parsed = null; }
+    if (!parsed) parsed = { jobSummary: raw.slice(0, 600), scope: [], materials: [], assumptions: [], quantities: [], question: '' };
+    parsed.jobSummary = parsed.jobSummary || '';
+    parsed.scope = Array.isArray(parsed.scope) ? parsed.scope : [];
+    parsed.materials = Array.isArray(parsed.materials) ? parsed.materials : [];
+    parsed.quantities = Array.isArray(parsed.quantities) ? parsed.quantities : [];
+    parsed.assumptions = Array.isArray(parsed.assumptions) ? parsed.assumptions : [];
+    parsed.lang = lang;
+
+    // Ask the single follow-up question first, before showing the draft.
+    if (!followupAnswer && parsed.question && String(parsed.question).trim()) {
+      update('documents', docId, { estimate: parsed });
+      askDrawingQuestion(docId, String(parsed.question).trim());
+      return;
+    }
+    parsed.question = '';
+    update('documents', docId, { estimate: parsed });
+    toast(t('estimateReady'), 'success');
+    showDrawingReview(docId);
+  }
+
+  function askDrawingQuestion(docId, q) {
+    modal(`<h2><i class="fas fa-circle-question"></i> ${t('oneQuestion')}</h2>
+      <div class="card" style="padding:14px;margin:10px 0"><b>${esc(q)}</b></div>
+      <div class="field"><div class="with-voice"><textarea id="dq-ans" placeholder="${esc(q)}"></textarea>${voiceBtn('dq-ans')}</div></div>
+      <div class="btnrow">
+        <button class="btn green" onclick="answerDrawingQ('${docId}')"><i class="fas fa-check"></i> ${t('answerIt')}</button>
+        <button class="btn ghost" onclick="skipDrawingQ('${docId}')">${t('skip')}</button>
+      </div>`);
+  }
+  function answerDrawingQ(docId) { const v = ($('#dq-ans').value || '').trim(); closeModal(); analyzeDrawing(docId, v || '(no answer given)'); }
+  function skipDrawingQ(docId) { closeModal(); const d = get('documents', docId); if (d && d.estimate) { d.estimate.question = ''; update('documents', docId, { estimate: d.estimate }); } showDrawingReview(docId); }
+
+  // The owner reviews and edits the draft before it is finalized. Upload → review → confirm.
+  function showDrawingReview(docId) {
+    const d = get('documents', docId); if (!d) return;
+    const e = d.estimate || { jobSummary: '', scope: [], materials: [], assumptions: [], quantities: [] };
+    const mats = (e.materials && e.materials.length) ? e.materials : [{ item: '', qty: '', unit: '' }];
+    const matRows = mats.map(matRowHTML).join('');
+    const qtys = (e.quantities || []).filter(q => q && (q.label || q.count));
+    modal(`<h2><i class="fas fa-vector-square"></i> ${t('reviewEdit')}</h2>
+      <div class="sheet-sub">${esc(d.name)}</div>
+      <div class="field"><label>${t('jobSummaryL')}</label><div class="with-voice"><textarea id="est-summary" style="min-height:84px">${esc(e.jobSummary || '')}</textarea>${voiceBtn('est-summary')}</div></div>
+      <div class="field"><label>${t('scopeOfWork')}</label><textarea id="est-scope" style="min-height:84px" placeholder="${lang === 'es' ? 'Un punto por línea' : 'One item per line'}">${esc((e.scope || []).join('\n'))}</textarea></div>
+      <label style="font-weight:600;display:block;margin:4px 0 6px">${t('materials')}</label>
+      <div id="mat-rows">${matRows}</div>
+      <button class="btn ghost sm" style="margin:4px 0 12px" onclick="addMaterialRow()"><i class="fas fa-plus"></i> ${t('addItem')}</button>
+      ${qtys.length ? `<div class="card" style="padding:12px;margin-bottom:10px"><div class="muted">${t('quantities')}</div>${qtys.map(q => kv(esc(q.label || ''), esc(String(q.count || '')))).join('')}</div>` : ''}
+      ${(e.assumptions && e.assumptions.length) ? `<div class="card" style="padding:12px;margin-bottom:10px"><div class="muted">${t('assumptions')}</div><ul style="margin:6px 0 0 16px;padding:0">${e.assumptions.map(a => `<li>${esc(a)}</li>`).join('')}</ul></div>` : ''}
+      <button class="btn green block" onclick="saveDrawingEstimate('${docId}')"><i class="fas fa-check"></i> ${t('confirm')}</button>
+      <button class="btn ghost block" style="margin-top:10px" onclick="closeModal();estimateFromDrawing('${docId}')"><i class="fas fa-file-invoice-dollar"></i> ${t('createEstimate')}</button>`);
+  }
+  function matRowHTML(m) {
+    m = m || {};
+    return `<div class="mat-row row2" style="grid-template-columns:1fr 64px 70px;gap:8px;margin-bottom:8px;align-items:center">
+      <input class="m-item" placeholder="${t('itemL')}" value="${esc(m.item || '')}">
+      <input class="m-qty" type="number" step="any" placeholder="${t('qtyL')}" value="${m.qty != null ? esc(String(m.qty)) : ''}">
+      <input class="m-unit" placeholder="${t('unitL')}" value="${esc(m.unit || '')}">
+    </div>`;
+  }
+  function addMaterialRow() { const c = $('#mat-rows'); if (!c) return; c.insertAdjacentHTML('beforeend', matRowHTML({})); }
+  function saveDrawingEstimate(docId) {
+    const d = get('documents', docId); if (!d) return;
+    const summary = ($('#est-summary').value || '').trim();
+    const scope = ($('#est-scope').value || '').split('\n').map(s => s.trim()).filter(Boolean);
+    const materials = [...document.querySelectorAll('#mat-rows .mat-row')].map(r => ({
+      item: (r.querySelector('.m-item').value || '').trim(),
+      qty: parseFloat(r.querySelector('.m-qty').value) || 0,
+      unit: (r.querySelector('.m-unit').value || '').trim(),
+    })).filter(m => m.item);
+    const cur = d.estimate || {};
+    update('documents', docId, { estimate: Object.assign({}, cur, { jobSummary: summary, scope, materials, finalized: true, lang }) });
+    closeModal(); toast(t('saved'), 'success'); render();
+  }
+  // Turn the reviewed draft into a real Estimate record on the job.
+  function estimateFromDrawing(docId) {
+    const d = get('documents', docId); const e = (d && d.estimate) || {};
+    const desc = [
+      e.jobSummary || '',
+      (e.scope && e.scope.length) ? '\n' + e.scope.map(s => '• ' + s).join('\n') : '',
+      (e.materials && e.materials.length) ? '\n' + t('materials') + ':\n' + e.materials.map(m => `- ${m.qty || ''} ${m.unit || ''} ${m.item}`.replace(/\s+/g, ' ').trim()).join('\n') : '',
+    ].filter(Boolean).join('\n');
+    openEstimateForm(null, d.jobId);
+    setTimeout(() => {
+      const td = $('#e-desc'); if (td) td.value = desc;
+      const tt = $('#e-title'); if (tt && !tt.value) tt.value = (e.jobSummary || d.name || '').slice(0, 50);
+    }, 30);
+  }
+
   /* ============================ ASSISTANT / CHATBOT ============================ */
   let chatHistory = [];
   function viewAssistant() {
@@ -1694,7 +1957,8 @@
     openEstimateForm, saveEstimate, estimateToInvoice, openInvoiceForm, saveInvoice, openInvoiceView, openPaymentForm, savePayment,
     openCheckForm, saveCheck, quickScanCheck, openFollowForm, saveFollow, toggleFollow, openWorkflow, openWorkflowForm, saveWorkflow,
     openSop, openSopForm, saveSop, shareLocation, exportCSV, exportQuickBooks, openUserForm, saveUser, toggleTheme, saveFirebase,
-    cloudPullNow, exportAll, importAll, askAssistant });
+    cloudPullNow, exportAll, importAll, askAssistant,
+    analyzeDrawing, askDrawingQuestion, answerDrawingQ, skipDrawingQ, showDrawingReview, addMaterialRow, saveDrawingEstimate, estimateFromDrawing });
   boot();
   </script>
 </body>
